@@ -1,1 +1,70 @@
-creating a workflow
+name: Skyramp UI Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  python-ui:
+    name: Python UI test (pytest + Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Your requested deps
+          pip3 install skyramp pytest-playwright pytest
+          # Ensure browsers are present for Playwright Python
+          python -m playwright install --with-deps chromium
+
+      - name: Run Python test
+        run: |
+          python3 -m pytest ui-demo-python.py --browser chromium
+
+  ts-ui:
+    name: TypeScript UI test (@playwright/test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          # Your requested deps
+          npm install @skyramp/skyramp @playwright/test
+          # Ensure Playwright browsers exist for Node
+          npx playwright install --with-deps chromium
+
+      - name: Run TS test
+        run: |
+          npx playwright test ui-demo-typescript.spec.ts --reporter=list
