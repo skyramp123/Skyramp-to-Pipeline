@@ -1,4 +1,4 @@
-name: Playwright Tests
+name: Python Tests
 on:
   push:
     branches: [ main ]
@@ -21,7 +21,7 @@ jobs:
     - name: Ensure browsers are installed
       run: python -m playwright install --with-deps
     - name: Run your tests
-      run: python3 -m pytest --browser chromium
+      run: python3 -m pytest
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
