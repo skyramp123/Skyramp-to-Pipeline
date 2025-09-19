@@ -1,0 +1,49 @@
+name: Skyramp TypeScript UI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  ts-ui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          npm install @skyramp/skyramp @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Generate & run for each trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          zips=(tests/*.zip)
+
+          if (( ${#zips[@]} )); then
+            echo "Found ${#zips[@]} trace zip(s): ${zips[*]}"
+            for z in "${zips[@]}"; do
+              echo "::group::Generate from $z"
+              skyramp generate ui rest \
+                --language typescript \
+                --framework playwright \
+                --playwright-trace "$z"
+              echo "::endgroup::"
+
+              echo "::group::Run Playwright for $z"
+              npx playwright test tests/ui-demo-typescript.spec.ts --reporter=list
+              echo "::endgroup::"
+            done
+          else
+            echo "No zip traces found — skipping run."
+          fi
