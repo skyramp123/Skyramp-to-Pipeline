@@ -18,11 +18,14 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies (global)
+      - name: Install dependencies (user)
         run: |
           npm install @skyramp/skyramp @playwright/test
           npx playwright install --with-deps chromium
-          sudo pip3 install skyramp
+          pip3 install --user skyramp
+
+      - name: Add local bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Generate & run per zip
         shell: bash
