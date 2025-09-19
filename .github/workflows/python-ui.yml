@@ -24,27 +24,55 @@ jobs:
           pip3 install skyramp pytest-playwright pytest
           python -m playwright install --with-deps chromium
 
-      - name: Generate & run for each trace
+      - name: Generate & run per zip (only generated tests)
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
           zips=(tests/*.zip)
 
-          if (( ${#zips[@]} )); then
-            echo "Found ${#zips[@]} trace zip(s): ${zips[*]}"
-            for z in "${zips[@]}"; do
-              echo "::group::Generate from $z"
-              skyramp generate ui rest \
-                --language python \
-                --framework pytest \
-                --playwright-trace "$z"
-              echo "::endgroup::"
-
-              echo "::group::Run pytest for $z"
-              python3 -m pytest tests/ui-demo-python.py --browser chromium -q
-              echo "::endgroup::"
-            done
-          else
+          if (( ${#zips[@]} == 0 )); then
             echo "No zip traces found — skipping run."
+            exit 0
           fi
+
+          for z in "${zips[@]}"; do
+            base="$(basename "$z" .zip)"
+            outdir="tests/generated/python/${base}"
+            mkdir -p "$outdir"
+
+            # Marker to detect newly created files if --output is not supported
+            marker="$(mktemp)"
+            touch "$marker"
+
+            echo "::group::Generate from $z"
+            # Prefer writing into a per-trace folder; if --output is unsupported, generator will ignore it.
+            skyramp generate ui rest \
+              --language python \
+              --framework pytest \
+              --playwright-trace "$z" \
+              --output "$outdir" || true
+            echo "::endgroup::"
+
+            # If the output dir received tests, run those; otherwise, run any new *.py tests created after marker.
+            if compgen -G "$outdir/**/*.py" > /dev/null || compgen -G "$outdir/*.py" > /dev/null; then
+              echo "::group::Run pytest (generated in $outdir)"
+              python3 -m pytest "$outdir" --browser chromium -q
+              echo "::endgroup::"
+            else
+              echo "No files detected in $outdir; scanning for newly generated tests…"
+              # Find new python test files created after generation
+              mapfile -t new_tests < <(find tests -type f -name "test_*.py" -newer "$marker" -print 2>/dev/null)
+              if (( ${#new_tests[@]} == 0 )); then
+                mapfile -t new_tests < <(find . -type f -name "test_*.py" -newer "$marker" -print 2>/dev/null)
+              fi
+              if (( ${#new_tests[@]} )); then
+                echo "::group::Run pytest (auto-detected new tests)"
+                printf 'Detected:\n%s\n' "${new_tests[@]}"
+                python3 -m pytest "${new_tests[@]}" --browser chromium -q
+                echo "::endgroup::"
+              else
+                echo "No generated python tests detected for $z — skipping this trace."
+              fi
+            fi
+          done

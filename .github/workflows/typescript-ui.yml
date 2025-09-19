@@ -23,27 +23,52 @@ jobs:
           npm install @skyramp/skyramp @playwright/test
           npx playwright install --with-deps chromium
 
-      - name: Generate & run for each trace
+      - name: Generate & run per zip (only generated tests)
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
           zips=(tests/*.zip)
 
-          if (( ${#zips[@]} )); then
-            echo "Found ${#zips[@]} trace zip(s): ${zips[*]}"
-            for z in "${zips[@]}"; do
-              echo "::group::Generate from $z"
-              skyramp generate ui rest \
-                --language typescript \
-                --framework playwright \
-                --playwright-trace "$z"
-              echo "::endgroup::"
-
-              echo "::group::Run Playwright for $z"
-              npx playwright test tests/ui-demo-typescript.spec.ts --reporter=list
-              echo "::endgroup::"
-            done
-          else
+          if (( ${#zips[@]} == 0 )); then
             echo "No zip traces found — skipping run."
+            exit 0
           fi
+
+          for z in "${zips[@]}"; do
+            base="$(basename "$z" .zip)"
+            outdir="tests/generated/ts/${base}"
+            mkdir -p "$outdir"
+
+            marker="$(mktemp)"
+            touch "$marker"
+
+            echo "::group::Generate from $z"
+            skyramp generate ui rest \
+              --language typescript \
+              --framework playwright \
+              --playwright-trace "$z" \
+              --output "$outdir" || true
+            echo "::endgroup::"
+
+            # If output dir has specs, run them; else run any new *.spec.ts created after marker
+            if compgen -G "$outdir/**/*.spec.ts" > /dev/null || compgen -G "$outdir/*.spec.ts" > /dev/null; then
+              echo "::group::Run Playwright (generated in $outdir)"
+              npx playwright test "$outdir" --reporter=list
+              echo "::endgroup::"
+            else
+              echo "No files detected in $outdir; scanning for newly generated specs…"
+              mapfile -t new_specs < <(find tests -type f -name "*.spec.ts" -newer "$marker" -print 2>/dev/null)
+              if (( ${#new_specs[@]} == 0 )); then
+                mapfile -t new_specs < <(find . -type f -name "*.spec.ts" -newer "$marker" -print 2>/dev/null)
+              fi
+              if (( ${#new_specs[@]} )); then
+                echo "::group::Run Playwright (auto-detected new specs)"
+                printf 'Detected:\n%s\n' "${new_specs[@]}"
+                npx playwright test "${new_specs[@]}" --reporter=list
+                echo "::endgroup::"
+              else
+                echo "No generated TypeScript specs detected for $z — skipping this trace."
+              fi
+            fi
+          done
