@@ -23,7 +23,7 @@ jobs:
           npm install @skyramp/skyramp @playwright/test
           npx playwright install --with-deps chromium
 
-      - name: Generate & run per zip (only generated tests)
+      - name: Generate & run per zip
         shell: bash
         run: |
           set -euo pipefail
@@ -36,39 +36,21 @@ jobs:
           fi
 
           for z in "${zips[@]}"; do
-            base="$(basename "$z" .zip)"
-            outdir="tests/generated/ts/${base}"
-            mkdir -p "$outdir"
-
-            marker="$(mktemp)"
-            touch "$marker"
-
             echo "::group::Generate from $z"
+            marker="$(date +%s)"
             skyramp generate ui rest \
               --language typescript \
               --framework playwright \
-              --playwright-trace "$z" \
-              --output "$outdir" || true
+              --playwright-trace "$z"
             echo "::endgroup::"
 
-            # If output dir has specs, run them; else run any new *.spec.ts created after marker
-            if compgen -G "$outdir/**/*.spec.ts" > /dev/null || compgen -G "$outdir/*.spec.ts" > /dev/null; then
-              echo "::group::Run Playwright (generated in $outdir)"
-              npx playwright test "$outdir" --reporter=list
-              echo "::endgroup::"
+            echo "::group::Run newly generated tests for $z"
+            mapfile -t new_specs < <(find . -type f -name "*.spec.ts" -newermt "@$marker")
+            if (( ${#new_specs[@]} )); then
+              printf 'Detected new TS specs:\n%s\n' "${new_specs[@]}"
+              npx playwright test "${new_specs[@]}" --reporter=list
             else
-              echo "No files detected in $outdir; scanning for newly generated specs…"
-              mapfile -t new_specs < <(find tests -type f -name "*.spec.ts" -newer "$marker" -print 2>/dev/null)
-              if (( ${#new_specs[@]} == 0 )); then
-                mapfile -t new_specs < <(find . -type f -name "*.spec.ts" -newer "$marker" -print 2>/dev/null)
-              fi
-              if (( ${#new_specs[@]} )); then
-                echo "::group::Run Playwright (auto-detected new specs)"
-                printf 'Detected:\n%s\n' "${new_specs[@]}"
-                npx playwright test "${new_specs[@]}" --reporter=list
-                echo "::endgroup::"
-              else
-                echo "No generated TypeScript specs detected for $z — skipping this trace."
-              fi
+              echo "No new TypeScript spec files detected for $z"
             fi
+            echo "::endgroup::"
           done
