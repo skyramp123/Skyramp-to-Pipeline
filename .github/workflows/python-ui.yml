@@ -24,6 +24,9 @@ jobs:
           pip3 install skyramp pytest-playwright pytest
           python -m playwright install --with-deps chromium
 
+      - name: Add local bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Generate & run per zip
         shell: bash
         run: |
