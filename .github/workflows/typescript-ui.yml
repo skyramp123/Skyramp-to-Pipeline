@@ -27,27 +27,18 @@ jobs:
       - name: Add local bin to PATH
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Resolve skyramp CLI
+      - name: Create skyramp CLI shim
         shell: bash
         run: |
           set -euo pipefail
-          echo "PATH: $PATH"
-          which -a skyramp || true
-          ls -la "$HOME/.local/bin" || true
-
-          SKYRAMP_BIN="$(command -v skyramp || true)"
-          if [[ -z "${SKYRAMP_BIN}" && -x "$HOME/.local/bin/skyramp" ]]; then
-            SKYRAMP_BIN="$HOME/.local/bin/skyramp"
-          fi
-          if [[ -z "${SKYRAMP_BIN}" && -x "/usr/local/bin/skyramp" ]]; then
-            SKYRAMP_BIN="/usr/local/bin/skyramp"
-          fi
-          if [[ -z "${SKYRAMP_BIN}" ]]; then
-            echo "skyramp CLI not found. Is it installed?"; python3 -m pip show skyramp || true
-            exit 127
-          fi
-          echo "Using skyramp at: $SKYRAMP_BIN"
-          echo "SKYRAMP_BIN=$SKYRAMP_BIN" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/skyramp" << 'EOF'
+          #!/usr/bin/env bash
+          exec python3 -m skyramp "$@"
+          EOF
+          chmod +x "$HOME/.local/bin/skyramp"
+          which skyramp
+          skyramp --help >/dev/null 2>&1 || true
 
       - name: Generate & run per zip
         shell: bash
@@ -64,7 +55,7 @@ jobs:
           for z in "${zips[@]}"; do
             echo "::group::Generate from $z"
             marker="$(date +%s)"
-            "$SKYRAMP_BIN" generate ui rest \
+            skyramp generate ui rest \
               --language typescript \
               --framework playwright \
               --playwright-trace "$z"
