@@ -18,56 +18,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (user)
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip3 install --user skyramp pytest-playwright pytest
+          pip3 install skyramp pytest-playwright pytest
           python -m playwright install --with-deps chromium
 
-      - name: Add local bin to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Create skyramp CLI shim
-        shell: bash
+      - name: Generate UI test from trace
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          cat > "$HOME/.local/bin/skyramp" << 'EOF'
-          #!/usr/bin/env bash
-          exec python3 -m skyramp "$@"
-          EOF
-          chmod +x "$HOME/.local/bin/skyramp"
-          which skyramp
-          skyramp --help >/dev/null 2>&1 || true
+          skyramp generate ui rest \
+          --language python \
+          --framework pytest \
+          --playwright-trace tests/demo.zip
 
-      - name: Generate & run per zip
-        shell: bash
+      - name: Run Python test
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          zips=(tests/*.zip)
-
-          if (( ${#zips[@]} == 0 )); then
-            echo "No zip traces found — skipping run."
-            exit 0
-          fi
-
-          for z in "${zips[@]}"; do
-            echo "::group::Generate from $z"
-            marker="$(date +%s)"
-            skyramp generate ui rest \
-              --language python \
-              --framework pytest \
-              --playwright-trace "$z"
-            echo "::endgroup::"
-
-            echo "::group::Run newly generated tests for $z"
-            mapfile -t new_tests < <(find . -type f -name "*.py" -newermt "@$marker")
-            if (( ${#new_tests[@]} )); then
-              printf 'Detected new Python tests:\n%s\n' "${new_tests[@]}"
-              python3 -m pytest "${new_tests[@]}" --browser chromium -q
-            else
-              echo "No new Python test files detected for $z"
-            fi
-            echo "::endgroup::"
-          done
+          python3 -m pytest tests/ui-demo-python.py --browser chromium

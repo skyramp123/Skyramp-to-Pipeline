@@ -18,56 +18,18 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies (user)
+      - name: Install dependencies
         run: |
           npm install @skyramp/skyramp @playwright/test
           npx playwright install --with-deps chromium
-          pip3 install --user skyramp
 
-      - name: Add local bin to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Create skyramp CLI shim
-        shell: bash
+      - name: Generate UI test from trace
         run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          cat > "$HOME/.local/bin/skyramp" << 'EOF'
-          #!/usr/bin/env bash
-          exec python3 -m skyramp "$@"
-          EOF
-          chmod +x "$HOME/.local/bin/skyramp"
-          which skyramp
-          skyramp --help >/dev/null 2>&1 || true
+          skyramp generate ui rest \
+          --language typescript \
+          --framework playwright \
+          --playwright-trace tests/demo.zip
 
-      - name: Generate & run per zip
-        shell: bash
+      - name: Run TS test
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          zips=(tests/*.zip)
-
-          if (( ${#zips[@]} == 0 )); then
-            echo "No zip traces found — skipping run."
-            exit 0
-          fi
-
-          for z in "${zips[@]}"; do
-            echo "::group::Generate from $z"
-            marker="$(date +%s)"
-            skyramp generate ui rest \
-              --language typescript \
-              --framework playwright \
-              --playwright-trace "$z"
-            echo "::endgroup::"
-
-            echo "::group::Run newly generated tests for $z"
-            mapfile -t new_specs < <(find . -type f -name "*.spec.ts" -newermt "@$marker")
-            if (( ${#new_specs[@]} )); then
-              printf 'Detected new TS specs:\n%s\n' "${new_specs[@]}"
-              npx playwright test "${new_specs[@]}" --reporter=list
-            else
-              echo "No new TypeScript spec files detected for $z"
-            fi
-            echo "::endgroup::"
-          done
+          npx playwright test tests/ui-demo-typescript.spec.ts --reporter=list
