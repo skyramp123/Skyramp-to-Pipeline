@@ -18,7 +18,7 @@ jobs:
     - name: Install Skyramp and playwright test
       run: npm install @skyramp/skyramp @playwright/test
     - name: Run Playwright tests
-      run: npx playwright test --reporter=list
+      run: npx playwright test tests/ --reporter=list
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
