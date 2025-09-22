@@ -10,15 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
+        cache: 'npm'  # This automatically caches npm dependencies
+    
+    # Cache Playwright browsers
+    - name: Cache Playwright browsers
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-browsers-
+    
+    - name: Install dependencies
+      run: npm install @skyramp/skyramp @playwright/test
+    
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
-    - name: Install Skyramp and playwright test
-      run: npm install @skyramp/skyramp @playwright/test
+    
     - name: Run Playwright tests
-      run: npx playwright test tests/ --reporter=list
+      run: npx playwright test --reporter=list
+    
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
