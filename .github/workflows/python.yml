@@ -44,7 +44,7 @@ jobs:
     
     - name: Run your tests
       run: |
-        for file in *.py; do
+        for file in skyramp_tests/*.py; do
           if [ -f "$file" ]; then
             echo "Running tests in $file"
             python3 -m pytest "$file" -v
