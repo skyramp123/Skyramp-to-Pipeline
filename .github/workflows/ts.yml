@@ -20,9 +20,9 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-browsers-
+        key: ${{ runner.os }}-playwright-browsers
         restore-keys: |
-          ${{ runner.os }}-playwright-browsers-
+          ${{ runner.os }}-playwright-browsers
     
     - name: Install dependencies
       run: npm install @skyramp/skyramp @playwright/test
