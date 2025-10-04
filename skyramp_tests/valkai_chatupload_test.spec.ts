@@ -69,7 +69,7 @@ test('testUi', async ({ page }) => {
     await performLogin(page, "kolja@test.com", "Password123!");
     
     // Upload PDF document
-    await uploadFile(page, "/Users/koljaheck/Documents/Professional/Skyramp/customers/case_studies/Valkai/FDA_Deficiency_Letter_With_Tables.pdf");
+    await uploadFile(page, "FDA_Deficiency_Letter_With_Tables.pdf");
     
     // Verify file upload confirmation
     await expect(page.getByRole("article")).toContainText("FDA_Deficiency_Letter_With_Tables.pdf");
